@@ -1,5 +1,7 @@
 package fpgame
 
+import scala.io.StdIn
+
 trait Monad[M[_]] {
   def unit[A](a: A): M[A]
 
@@ -16,9 +18,36 @@ object Monad {
   }
 }
 
-case class OptionT[M[_], A] {
-  def flatMap[B](f: A => OptionT[M, B])(implicit M: Monad[M]): OptionT[M, B] = ???
+case class OptionT[M[_], A](run: M[Option[A]]) {
+  def flatMap[B](f: A => OptionT[M, B])(implicit M: Monad[M]): OptionT[M, B] = OptionT(M.flatMap(run) {
+    case None => M.unit(None)
+    case Some(a) => f(a).run
+  })
 
-  def
+  def map[B](f: A => B)(implicit M: Monad[M]): OptionT[M, B] = flatMap(a => OptionT.unit(f(a)))
+}
 
+object OptionT {
+  def unit[M[_], A](a: A)(implicit M: Monad[M]): OptionT[M, A] = OptionT(M.unit(Some(a)))
+}
+
+object OptionTTest {
+  def main(args: Array[String]): Unit = {
+    def foo(s: String): IO[Option[String]] = IO {
+      StdIn.readLine(s"Enter $s:") match {
+        case "" => None
+        case x => Some(x)
+      }
+    }
+
+    def bar(a: String): IO[Option[String]] = IO {
+      if (a.contains(" ")) Some(a) else None
+    }
+
+    val x = for {
+      y <- OptionT(foo("test"))
+      z <- OptionT(bar(y))
+    } yield z
+    println(x.run.run)
+  }
 }

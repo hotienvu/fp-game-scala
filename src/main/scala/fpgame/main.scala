@@ -1,6 +1,6 @@
 package fpgame
 
-import fpgame.IO
+import scala.io.StdIn
 
 object Main {
   def main(args: Array[String]): Unit = {
@@ -15,16 +15,13 @@ object Main {
 
     def inputMenu(gameTitle: String) = for {
       _ <- printMainScreen(gameTitle)
-      choice <- IO.getLine
+      choice <- IO.getLine("Enter your choice:")
     } yield choice
 
+
+    val gameState = GameState(Player(0, 0, 100))
     val game2: IO[Unit] = IO.doWhile(inputMenu("game 2")) {
-      case "1" => for {
-        _ <- IO.putStr("Update health: ")
-        delta <- IO.getLine.map(_.toInt)
-//        newHealth <- Game.updateHealth(delta)
-        _ <- IO.putStrln(s"Player health: $delta")
-      }  yield true
+      case "1" => IO { true }
       case "q" => IO { false }
     }
 

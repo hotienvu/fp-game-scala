@@ -7,38 +7,45 @@ case class GameMap[A](cells: Vector[Vector[A]]) {
 }
 
 object Game {
-  def updateHealth(delta: Int): State[GameState, Int] =
-    State(s => {
-      val newHealth = s.player.health + delta
+  def updateHealth(): StateT[IO, GameState, Int] =
+    StateT(s => for {
+      delta <- IO.getLine("Enter health delta: ").map(_.toInt)
+      (newState, newHealth) <- IO {
+        val newHealth = s.player.health + delta
+        (s.copy(player = s.player.copy(health = newHealth)), newHealth)
+      }
+      _ <- IO.putStrln(s"Player new health: $newHealth")
+    } yield (newState, newHealth))
 
-      (s.copy(player = s.player.copy(health = newHealth)), newHealth)
-    })
+  def moveX(): StateT[IO, GameState, Int] =
+    StateT(s => for {
+      dx <- IO.getLine("Enter dx: ").map(_.toInt)
+      (newState, newX) <- IO {
+        val newX = s.player.x + dx
 
-  def moveX(dx: Int): State[GameState, Int] =
-    State(s => {
-      val newX = s.player.x + dx
+        (s.copy(player = s.player.copy(x = newX)), newX)
+      }
+      _ <- IO.putStrln(s"Player new position: ($newX, ${newState.player.y})")
+    } yield (newState, newX))
 
-      (s.copy(player = s.player.copy(x = newX)), newX)
-    })
+  def moveY(): StateT[IO, GameState, Int] =
+    StateT(s => for {
+      dy <- IO.getLine("Enter dy: ").map(_.toInt)
+      (newState, newY) <- IO {
+        val newY = s.player.y + dy
 
-  def moveY(dy: Int): State[GameState, Int] =
-    State(s => {
-      val newY = s.player.y + dy
-
-      (s.copy(player = s.player.copy(y = newY)), newY)
-    })
+        (s.copy(player = s.player.copy(y = newY)), newY)
+      }
+      _ <- IO.putStrln(s"Player new position: (${newState.player.x}, $newY)")
+    } yield (newState, newY))
 
 
   def main(args: Array[String]): Unit = {
-    val newHealth = for {
-      _ <- moveX(1)
-      _ <- moveY(2)
-      _ <- moveY(2)
-      _ <- moveX(100)
-      _ <- moveY(2)
-      _ <- updateHealth(-10)
-      _ <- updateHealth(-100)
+    val play = for {
+      _ <- moveX()
+      _ <- moveY()
+      _ <- updateHealth
     } yield ()
-    println(newHealth.run(GameState(Player(0, 0, 100))))
+    println(play.run(GameState(Player(0, 0, 100))).run)
   }
 }
