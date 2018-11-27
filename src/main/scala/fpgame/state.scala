@@ -1,6 +1,6 @@
 package fpgame
 
-case class State[S, A](run: S => (S, A)) {
+case class State[S, +A](run: S => (S, A)) {
 
   def flatMap[B](f: A => State[S, B]): State[S, B] = State(s => {
     val (s1, a) = run(s)
@@ -8,10 +8,13 @@ case class State[S, A](run: S => (S, A)) {
   })
 
   def map[B](f: A => B): State[S, B] = flatMap(a => State.unit(f(a)))
+
 }
 
 object State {
   def unit[S, A](a: A): State[S, A] = State(s => (s, a))
+
+  def get[S]: State[S, S] = State(s => (s, s))
 }
 
 case class StateT[M[_], S, A](run: S => M[(S, A)]) {
@@ -25,5 +28,7 @@ case class StateT[M[_], S, A](run: S => M[(S, A)]) {
 
 object StateT {
   def unit[M[_], S, A](a: A)(implicit M: Monad[M]): StateT[M, S, A] = StateT(s => M.unit((s, a)))
+
+  def get[M[_], S](implicit M: Monad[M]): StateT[M, S, S] = StateT(s => M.unit((s, s)))
 }
 

@@ -28,22 +28,31 @@ object Main {
       case "q" => IO { false }
     }
 
-    def test(choice: String): Game[Unit] = choice match {
-      case "q" => IO.putStrln("Quitting...").toStateT
+    def update(choice: String): Game[Unit] = choice match {
       case "1" => updateHealth()
       case "2" => moveX()
       case "3" => moveY()
       case "4" => printPlayerState()
+      case "q" => IO{()}.toStateT
       case _ => IO.putStrln("Unknown command").toStateT
     }
 
 
     def gameLoop: Game[Unit] = for {
       choice <- inputMenu("game 2").toStateT
-      _ <- test(choice)
-      _ <- if (choice == "q") IO{()}.toStateT else gameLoop
+      _ <- update(choice)
+      state <- StateT.get
+      _ <- {
+        if (choice == "q") IO.putStrln("Quitting...").toStateT
+        else if (state.player.health <= 0) IO.putStrln("Player died. Quitting...").toStateT
+        else gameLoop
+      }
     } yield ()
 
     gameLoop.run(gameState).run
+    inputMenu("game 2").toStateT
+      .flatMap(choice => update(choice))
+      .flatMap(_ => StateT.get)
+      .flatMap(gs => IO.putStrln("Player died. Quitting...").toStateT)
   }
 }
