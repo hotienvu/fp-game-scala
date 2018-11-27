@@ -11,10 +11,6 @@ trait IO[A] {
 }
 
 object IO {
-  implicit class ExtendedIO[S, A](val io: IO[(S, A)]) {
-    def toStateT: StateT[IO, S, A] = StateT(_ => IO { io.run })
-  }
-
   def apply[A](a: => A): IO[A] = new IO[A] { override def run: A = a }
 
   def getLine(s: String): IO[String] = IO { StdIn.readLine(s) }
