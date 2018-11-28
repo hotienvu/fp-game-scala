@@ -14,12 +14,17 @@ object Game {
     def toStateT: StateT[IO, GameState, A] = StateT(s => io.map(a => (s, a)))
   }
 
+  val healthL = Lens[Player, Int](_.health, (s, a) => s.copy(health = a))
+  val xL = Lens[Player, Int](_.x, (s, a) => s.copy(x = a))
+  val yL = Lens[Player, Int](_.y, (s, a) => s.copy(y = a))
+  val playerL = Lens[GameState, Player](_.player, (s, a) => s.copy(player = a))
+
   def updateHealth(): Game[Unit] =
     StateT(s => for {
       delta <- IO.getLine("Enter health delta: ").map(_.toInt)
       (newState, newHealth) <- IO {
         val newHealth = s.player.health + delta
-        (s.copy(player = s.player.copy(health = newHealth)), newHealth)
+        (playerL |-> healthL set(s, newHealth), newHealth)
       }
       _ <- IO.putStrln(s"Player new health: $newHealth")
     } yield (newState, ()))
@@ -30,7 +35,7 @@ object Game {
       (newState, newX) <- IO {
         val newX = s.player.x + dx
 
-        (s.copy(player = s.player.copy(x = newX)), newX)
+        (playerL |-> xL set(s, newX), newX)
       }
       _ <- IO.putStrln(s"Player new position: ($newX, ${newState.player.y})")
     } yield (newState, ()))
@@ -41,7 +46,7 @@ object Game {
       (newState, newY) <- IO {
         val newY = s.player.y + dy
 
-        (s.copy(player = s.player.copy(y = newY)), newY)
+        (playerL |-> yL set(s, newY), newY)
       }
       _ <- IO.putStrln(s"Player new position: (${newState.player.x}, $newY)")
     } yield (newState, ()))
@@ -49,6 +54,7 @@ object Game {
   def printPlayerState(): Game[Unit] =
     StateT(s => IO.putStrln(s"Player state: ${s.player}").map(_ => (s, ())))
 
+  def update[A](lens: Lens[GameState, A])(f: A => A): Game[A] = ???
 
   def main(args: Array[String]): Unit = {
     val play = for {
