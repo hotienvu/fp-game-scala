@@ -22,12 +22,6 @@ object Main {
       choice <- IO.getLine("Enter your choice:")
     } yield choice
 
-    val gameState = GameState(Player(0, 0, 100))
-    val game2: IO[Unit] = IO.doWhile(inputMenu("game 2")) {
-      case "1" => IO { true }
-      case "q" => IO { false }
-    }
-
     def update(choice: String): Game[Unit] = choice match {
       case "1" => updateHealth()
       case "2" => moveX()
@@ -49,10 +43,7 @@ object Main {
       }
     } yield ()
 
+    val gameState = GameState(Player(0, 0, 100))
     gameLoop.run(gameState).run
-    inputMenu("game 2").toStateT
-      .flatMap(choice => update(choice))
-      .flatMap(_ => StateT.get)
-      .flatMap(gs => IO.putStrln("Player died. Quitting...").toStateT)
   }
 }
