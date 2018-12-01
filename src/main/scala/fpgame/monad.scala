@@ -8,6 +8,13 @@ trait Monad[M[_]] {
   def flatMap[A, B](ma: M[A])(f: A => M[B]): M[B]
 
   def map[A, B](ma: M[A])(f: A => B): M[B] = flatMap(ma)(a => unit(f(a)))
+
+  def foreach[A](mas: M[A]*): M[Unit] = foreach_(mas.toList)
+
+  def foreach_[A](mas: List[M[A]]): M[Unit] =
+    mas.foldLeft(unit(()))((acc, ma) => flatMap(acc)(_ => skip(ma)))
+
+  def skip[A](ma: M[A]): M[Unit] = map(ma)(_ => ())
 }
 
 object Monad {

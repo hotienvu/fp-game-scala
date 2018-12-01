@@ -10,7 +10,11 @@ trait IO[A] {
   def map[B](f: A => B): IO[B] = flatMap(a => IO { f(a) })
 }
 
-object IO {
+object IO extends Monad[IO] {
+  override def unit[A](a: A): IO[A] = apply(a)
+
+  override def flatMap[A, B](ma: IO[A])(f: A => IO[B]): IO[B] = ma flatMap f
+
   def apply[A](a: => A): IO[A] = new IO[A] { override def run: A = a }
 
   def getLine(s: String): IO[String] = IO { StdIn.readLine(s) }
