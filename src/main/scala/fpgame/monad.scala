@@ -9,6 +9,15 @@ trait Monad[M[_]] {
 
   def map[A, B](ma: M[A])(f: A => B): M[B] = flatMap(ma)(a => unit(f(a)))
 
+  def map2[A, B, C](ma: M[A], mb: M[B])(f: (A, B) => C): M[C] =
+    flatMap(ma)(a => map(mb)(b => f(a, b)))
+
+  def sequence[A](lma: List[M[A]]): M[List[A]] =
+    traverse(lma)(unit)
+
+  def traverse[A, B](lma: List[M[A]])(f: A => M[B]): M[List[B]] =
+    lma.foldRight(unit(List.empty[B]))((ma, acc) => map2(flatMap(ma)(f), acc)(_ :: _))
+
   def foreach[A](mas: M[A]*): M[Unit] = foreach_(mas.toList)
 
   def foreach_[A](mas: List[M[A]]): M[Unit] =

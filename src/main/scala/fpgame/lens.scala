@@ -14,7 +14,7 @@ object LensTest {
     val y = Lens[Position, Int](_.y, (s, a) => s.copy(y = a))
 
 
-    val p = Player(Position(1, 2), 100)
+    val p = Player("Test Player", Position(1, 2), 100)
     val g = GameState(p)
     val g1 = player |-> health set(g, 10)
     val g2 = player |-> position |-> x set(g1, 10)

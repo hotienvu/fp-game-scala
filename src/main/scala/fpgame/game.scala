@@ -1,34 +1,10 @@
 package fpgame
 
-sealed trait Character
-case class NPC(position: Position, health: Int) extends Character
-case class Player(position: Position, health: Int, items: Set[Item] = Set.empty) extends Character
+private object Game extends Monad[Game] {
+  override def unit[A](a: A): Game[A] = StateT.unit(a)
 
-case class Position(x: Int, y: Int)
+  override def flatMap[A, B](ma: Game[A])(f: A => Game[B]): Game[B] = ma flatMap f
 
-case class GameState(player: Player, map: GameMap = GameMap())
-case class GameMap(cells: Vector[Vector[Cell]] = Vector.empty) {
-  def at(x: Int, y: Int): Cell = cells(x)(y)
-  def updated(x: Int, y: Int, c: Cell): GameMap =
-    GameMap(cells.updated(x, cells(x).updated(y, c)))
-}
-
-sealed trait Cell
-case class FreeCell(items: Set[Item], players: Set[Character]) extends Cell
-case object BlockedCell extends Cell
-
-
-sealed trait Item
-case class Sword(name: String, attack: Int) extends Item
-case class Shield(name: String, defend: Int) extends Item
-
-
-object Game extends Monad[({type f[x] = StateT[IO, GameState, x]})#f] {
-  override def unit[A](a: A): StateT[IO, GameState, A] = StateT.unit(a)
-
-  override def flatMap[A, B](ma: StateT[IO, GameState, A])(f: A => StateT[IO, GameState, B]): StateT[IO, GameState, B] = ma flatMap f
-
-  type Game[A] = StateT[IO, GameState, A]
 
   implicit class LiftedIO[A](val io: IO[A]) {
     def toStateT: StateT[IO, GameState, A] = StateT(s => io.map(a => (s, a)))
@@ -40,6 +16,7 @@ object Game extends Monad[({type f[x] = StateT[IO, GameState, x]})#f] {
   private def cell_(x: Int, y: Int) = Lens[GameMap, Cell](_.at(x, y), (s, a) => s.updated(x, y, a))
   private def freeCell_(x: Int, y: Int) = Lens[GameMap, FreeCell](_.at(x, y).asInstanceOf[FreeCell], (s, a) => s.updated(x, y, a))
   private def cellItems = Lens[FreeCell, Set[Item]](_.items, (s, a) => s.copy(items = a))
+  private def cellPlayers = Lens[FreeCell, Set[Character]](_.players, (s, a) => s.copy(players = a))
   private val player_ = Lens[GameState, Player](_.player, (s, a) => s.copy(player = a))
   private val items_ = Lens[Player, Set[Item]](_.items, (s, a) => s.copy(items = a))
   private val health_ = Lens[Player, Int](_.health, (s, a) => s.copy(health = a))
@@ -104,6 +81,31 @@ object Game extends Monad[({type f[x] = StateT[IO, GameState, x]})#f] {
     })
   } yield()
 
+  def fight(): Game[Unit] = for {
+    p <- get(player_)
+    c <- get(map_ |-> cell_(p.position.x, p.position.y))
+    _ <- c match {
+      case BlockedCell => nothing()
+      case _ : FreeCell =>  for {
+        players <- get(map_ |-> freeCell_(p.position.x, p.position.y) |-> cellPlayers)
+        _ <- fightOpponents(players.filter(it => it.isInstanceOf[NPC]).toList)
+
+      } yield ()
+    }
+  } yield ()
+
+  private def fightOpponents(opponents: List[Character]): Game[List[Int]] =
+    sequence(opponents.map(fightOpponent))
+
+  private def fightOpponent(opponent: Character): Game[Int] =
+    opponent match {
+      case _: Foe => for {
+        _ <- IO.putStrln(s"Fighting ${opponent.name} at ${opponent.position}").toStateT
+        newHealth <- update(player_ |-> health_)(_ - opponent.attack)
+      } yield newHealth
+      case _ => get(player_ |-> health_)
+    }
+
   private def update[A](lens: Lens[GameState, A])(f: A => A): Game[A] =
     StateT(s => IO {
       val v = f(lens.get(s))
@@ -121,6 +123,6 @@ object Game extends Monad[({type f[x] = StateT[IO, GameState, x]})#f] {
       _ <- moveY()
       _ <- updateHealth()
     } yield ()
-    println(play.run(GameState(Player(Position(0, 0), 100))).run)
+    println(play.run(GameState(Player("Test Player", Position(0, 0), 100))).run)
   }
 }
