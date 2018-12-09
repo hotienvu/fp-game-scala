@@ -15,6 +15,9 @@ trait Monad[M[_]] {
   def sequence[A](lma: List[M[A]]): M[List[A]] =
     traverse(lma)(unit)
 
+  def sequence[A](lma: M[A]*): M[List[A]] =
+    traverse(lma.toList)(unit)
+
   def traverse[A, B](lma: List[M[A]])(f: A => M[B]): M[List[B]] =
     lma.foldRight(unit(List.empty[B]))((ma, acc) => map2(flatMap(ma)(f), acc)(_ :: _))
 

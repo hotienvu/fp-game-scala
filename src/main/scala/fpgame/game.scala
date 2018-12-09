@@ -1,4 +1,5 @@
 package fpgame
+import Console.{GREEN, RESET, RED, BLUE, MAGENTA}
 
 private object Game extends Monad[Game] {
   override def unit[A](a: A): Game[A] = StateT.unit(a)
@@ -8,6 +9,10 @@ private object Game extends Monad[Game] {
 
   implicit class LiftedIO[A](val io: IO[A]) {
     def toStateT: StateT[IO, GameState, A] = StateT(s => io.map(a => (s, a)))
+  }
+
+  implicit class ExtendedInt[A](val s: Int) {
+    def maxLength(n: Int): String = s.toString.padTo(n, ' ')
   }
 
   def nothing(): Game[Unit] = IO{()}.toStateT
@@ -23,12 +28,6 @@ private object Game extends Monad[Game] {
   private val position_ = Lens[Player, Position](_.position, (s, a) => s.copy(position = a))
   private val x_ = Lens[Position, Int](_.x, (s, a) => s.copy(x = a))
   private val y_ = Lens[Position, Int](_.y, (s, a) => s.copy(y = a))
-
-  def updateHealth(): Game[Unit] = for {
-    delta <- IO.getLine("Enter health delta: ").map(_.toInt).toStateT
-    _ <- update(player_ |-> health_)(_ + delta)
-    _ <- printPlayerState()
-  } yield ()
 
   def moveX(): Game[Unit] = for {
     dx <- IO.getLine("Enter dx: ").map(_.toInt).toStateT
@@ -67,18 +66,44 @@ private object Game extends Monad[Game] {
     }
   } yield ()
 
+
   def printPlayerState(): Game[Unit] = for {
-    player <- get(player_)
-    _ <- liftIO(IO.putStrln(s"Player state: $player"))
+    p <- get(player_)
+    _ <- printCharacterAttributes(p)
+    _ <- printCell(p.position.x, p.position.y)
   } yield()
+
+  private def printCharacterAttributes(p: Character): Game[Unit] =
+    IO.putStrln(s"Name: $MAGENTA${p.name.padTo(30, ' ')}$RESET |  " +
+      s"H: $GREEN${p.health.maxLength(10)}$RESET | " +
+      s"A: $RED${p.attack.maxLength(10)}$RESET | " +
+      s"D: $BLUE${p.defend.maxLength(10)}$RESET").toStateT
+
+  private def printCell(x: Int, y: Int): Game[Unit] = for {
+    _ <- IO.putStrln(s"Position: $x,$y").toStateT
+    cell <- get(map_ |-> cell_(x, y))
+    _ <- cell match {
+      case BlockedCell => IO.putStrln("Blocked Cell").toStateT
+      case FreeCell(items, players) => sequenceUnit(
+        printItems(items),
+        printPlayers(players)
+      )
+    }
+  } yield ()
+
+  private def printItems(items: Set[Item]): Game[Unit] =
+    IO.putStrln(items.mkString("\n")).toStateT
+
+  private def printPlayers(players: Set[Character]): Game[Unit] =
+    sequenceUnit(players.map(p => printCharacterAttributes(p)))
 
   def printGameMap(): Game[Unit] = for {
     m <- get(map_)
-    _ <- liftIO(IO {
+    _ <- IO {
       m.cells.foreach(row => {
         println(row.mkString("  "))
       })
-    })
+    }.toStateT
   } yield()
 
   def fight(): Game[Unit] = for {
@@ -94,17 +119,29 @@ private object Game extends Monad[Game] {
     }
   } yield ()
 
-  private def fightOpponents(opponents: List[Character]): Game[List[Int]] =
-    sequence(opponents.map(fightOpponent))
+  private def fightOpponents(opponents: List[Character]): Game[Unit] =
+    sequenceUnit(opponents.map(fightOpponent))
 
   private def fightOpponent(opponent: Character): Game[Int] =
     opponent match {
-      case _: Foe => for {
-        _ <- IO.putStrln(s"Fighting ${opponent.name} at ${opponent.position}").toStateT
-        newHealth <- update(player_ |-> health_)(_ - opponent.attack)
+      case o: Foe => for {
+        _ <- IO.putStrln(s"Fighting ${o.name} at ${o.position}").toStateT
+        p <- get(player_)
+        newHealth <- update(player_ |-> health_)(_ - o.attack)
+        _ <- updateCharacter(p.position.x, p.position.y, o)(_ => o.addHealth(-p.attack))
       } yield newHealth
       case _ => get(player_ |-> health_)
     }
+
+  private def updateCharacter(x: Int, y: Int, c: Character)(f :Character => Character): Game[Unit] = for {
+    cell <- get(map_ |-> cell_(x, y))
+    _ <- cell match {
+      case FreeCell(_, players) =>
+        if (players.contains(c)) update(map_ |-> freeCell_(x, y) |-> cellPlayers)(ps => ps - c + f(c))
+        else nothing()
+      case _ => nothing()
+    }
+  } yield ()
 
   private def update[A](lens: Lens[GameState, A])(f: A => A): Game[A] =
     StateT(s => IO {
@@ -115,14 +152,10 @@ private object Game extends Monad[Game] {
   private def get[A](lens: Lens[GameState, A]): Game[A] =
     StateT[IO, GameState, A] (s => IO { (s, lens.get(s)) } )
 
-  private def liftIO[A](io: IO[A]): Game[A] = StateT(s => io.map((s, _)))
+  private def sequenceUnit[A](lma: Game[A]*): Game[Unit] = for {
+    _ <- sequence(lma :_*)
+  } yield ()
 
-  def main(args: Array[String]): Unit = {
-    val play = for {
-      _ <- moveX()
-      _ <- moveY()
-      _ <- updateHealth()
-    } yield ()
-    println(play.run(GameState(Player("Test Player", Position(0, 0), 100))).run)
-  }
+  private def sequenceUnit[A](lma: Iterable[Game[A]]): Game[Unit] =
+    sequenceUnit(lma.toStream :_*)
 }

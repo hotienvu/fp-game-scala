@@ -19,7 +19,7 @@ object IO extends Monad[IO] {
 
   def getLine(s: String): IO[String] = IO { StdIn.readLine(s) }
 
-  def putStrln(s: String): IO[Unit] = IO { println(s) }
+  def putStrln(s: String): IO[Unit] = IO { Console.println(s) }
 
   def putStr(s: String): IO[Unit] = IO { print(s) }
 

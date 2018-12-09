@@ -12,7 +12,7 @@ object Main {
         | Enter your choice:
         | 1. Print player state
         | 2. Print game map
-        | 3. Update health
+        | 3. Print game map
         | 4. Move player horizontal
         | 5. Move player vertical
         | 6. Pickup items at current cell
@@ -29,7 +29,7 @@ object Main {
     def update(choice: String): Game[Unit] = choice match {
       case "1" => printPlayerState()
       case "2" => printGameMap()
-      case "3" => updateHealth()
+      case "3" => printGameMap()
       case "4" => moveX()
       case "5" => moveY()
       case "6" => pickupItems()

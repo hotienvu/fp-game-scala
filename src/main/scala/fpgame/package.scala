@@ -8,10 +8,14 @@ package object fpgame {
     def health: Int
     def attack: Int
     def defend: Int
+
   }
   private[fpgame] sealed trait NPC extends Character
   private[fpgame] case class Friend(name: String, position: Position, health: Int, attack: Int, defend: Int) extends NPC
-  private[fpgame] case class Foe(name: String, position: Position, health: Int, attack: Int, defend: Int) extends NPC
+  private[fpgame] case class Foe(name: String, position: Position, health: Int, attack: Int, defend: Int) extends NPC {
+    def addHealth(delta: Int): Foe = this.copy(health = health + delta)
+  }
+
   private[fpgame] case class Player(name: String, position: Position, health: Int = 100, attack: Int = 0, defend: Int = 0, items: Set[Item] = Set.empty) extends Character
 
   private[fpgame] case class Position(x: Int, y: Int)
